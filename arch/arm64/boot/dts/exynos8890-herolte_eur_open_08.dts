@@ -170,6 +170,40 @@
 		};
 	};
 
+	//Charm start
+	BCM4773@0 {
+		compatible = "ssp,BCM4773";
+		reg = <0>;
+		spi-max-frequency = <26000000>;
+		spi-cpol;
+		spi-cpha;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ssp_host_req &ssp_mcu_req &ssp_mcu_resp &ssp_batch_wake_irq>;
+
+		gpio-controller;
+		#gpio-cells = <2>;
+		ssp-host-req = <&gpa3 4 0x00>;
+		ssp-mcu-req = <&gpe6 4 0x00>;
+		ssp-mcu-resp = <&gpg0 2 0x00>;
+		ssp-batch-wake-irq = <&gpa3 1 0x00>;
+		ssp-acc-position = <7>;
+		ssp-mag-position = <4>;
+		ssp-sns-combination = <0>;
+		ssp,prox-hi_thresh = <2000>;
+		ssp,prox-low_thresh = <1400>;
+		ssp-ap-rev = <1>;
+		ssp-mag-array = <9787 662 79 290 9460 27 200 (-33) 10632>;
+		ssp-glass-type = <0>;
+
+		controller-data {
+			//Charm
+			compatible = "ssp,BCM4773,cd";
+			cs-gpio = <&gpe2 5 0>;
+			samsung,spi-feedback-delay = <0>;
+			};
+		};
+	//Charm end
+
 	spi_1: spi@14d30000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -180,35 +214,37 @@
 		num-cs = <1>;
 		status = "okay";
 
-		BCM4773@0 {
-			compatible = "ssp,BCM4773";
-			reg = <0>;
-			spi-max-frequency = <26000000>;
-			spi-cpol;
-			spi-cpha;
-			pinctrl-names = "default";
-			pinctrl-0 = <&ssp_host_req &ssp_mcu_req &ssp_mcu_resp &ssp_batch_wake_irq>;
+		//Charm start
+		/////BCM4773@0 {
+		/////	compatible = "ssp,BCM4773";
+		/////	reg = <0>;
+		/////	spi-max-frequency = <26000000>;
+		/////	spi-cpol;
+		/////	spi-cpha;
+		/////	pinctrl-names = "default";
+		/////	pinctrl-0 = <&ssp_host_req &ssp_mcu_req &ssp_mcu_resp &ssp_batch_wake_irq>;
 
-			gpio-controller;
-			#gpio-cells = <2>;
-			ssp-host-req = <&gpa3 4 0x00>;
-			ssp-mcu-req = <&gpe6 4 0x00>;
-			ssp-mcu-resp = <&gpg0 2 0x00>;
-			ssp-batch-wake-irq = <&gpa3 1 0x00>;
-			ssp-acc-position = <7>;
-			ssp-mag-position = <4>;
-			ssp-sns-combination = <0>;
-			ssp,prox-hi_thresh = <2000>;
-			ssp,prox-low_thresh = <1400>;
-			ssp-ap-rev = <1>;
-			ssp-mag-array = <9787 662 79 290 9460 27 200 (-33) 10632>;
-			ssp-glass-type = <0>;
+		/////	gpio-controller;
+		/////	#gpio-cells = <2>;
+		/////	ssp-host-req = <&gpa3 4 0x00>;
+		/////	ssp-mcu-req = <&gpe6 4 0x00>;
+		/////	ssp-mcu-resp = <&gpg0 2 0x00>;
+		/////	ssp-batch-wake-irq = <&gpa3 1 0x00>;
+		/////	ssp-acc-position = <7>;
+		/////	ssp-mag-position = <4>;
+		/////	ssp-sns-combination = <0>;
+		/////	ssp,prox-hi_thresh = <2000>;
+		/////	ssp,prox-low_thresh = <1400>;
+		/////	ssp-ap-rev = <1>;
+		/////	ssp-mag-array = <9787 662 79 290 9460 27 200 (-33) 10632>;
+		/////	ssp-glass-type = <0>;
 
-			controller-data {
-				cs-gpio = <&gpe2 5 0>;
-				samsung,spi-feedback-delay = <0>;
-				};
-			};
+		/////	controller-data {
+		/////		cs-gpio = <&gpe2 5 0>;
+		/////		samsung,spi-feedback-delay = <0>;
+		/////		};
+		/////	};
+		//Charm end
 	};
 
 	gps {

@@ -174,10 +174,12 @@ obj-$(CONFIG_EXYNOS_BTS)	+= bts/
 obj-$(CONFIG_TRUSTONIC_TEE) += gud/
 
 #Sensorhub
-obj-$(CONFIG_SENSORS_SSP)	+= sensorhub/
+# Charm
+####obj-$(CONFIG_SENSORS_SSP)	+= sensorhub/
 
 # FINGERPRINT
 obj-$(CONFIG_SENSORS_FINGERPRINT)	+= fingerprint/
 
 # Motor
-obj-y                           += motor/
+# Charm
+####obj-y                           += motor/

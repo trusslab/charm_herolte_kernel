@@ -29,6 +29,8 @@
 #include <linux/usb/gadget.h>
 #include <linux/soc/samsung/exynos-soc.h>
 #include <linux/usb_notify.h>
+//Charm
+#include <linux/prints.h>
 
 #include "gadget_chips.h"
 
@@ -1465,6 +1467,9 @@ functions_show(struct device *pdev, struct device_attribute *attr, char *buf)
 	return buff - buf;
 }
 
+//Charm
+int charm_agent_init2(void);
+
 static ssize_t
 functions_store(struct device *pdev, struct device_attribute *attr,
 			       const char *buff, size_t size)
@@ -1476,6 +1481,14 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 	int err;
 	int is_ffs;
 	int ffs_enabled = 0;
+
+	//Charm start
+	if(!strncmp(buff, "charm", 5)) {
+		PRINTK5("[0.1]");
+		charm_agent_init2();
+		return size;
+	} 
+	//Charm end
 
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 	g_rndis = 0;
@@ -1492,6 +1505,17 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 
 	printk(KERN_DEBUG "usb: %s buff=%s\n", __func__, buff);
 	strlcpy(buf, buff, sizeof(buf));
+	//Charm start
+	PRINTK5("[1]: buf = %s", buf);
+
+	//if(!strcmp(buf, "mtp,adb")) {
+	if(!strcmp(buf, "adb")) {
+	//if(!strcmp(buf, "mtp,acm,adb,accessory")) {
+		//strlcpy(buf, "mtp,adb,accessory", sizeof("mtp,adb,accessory"));
+		strlcpy(buf, "acm,adb,accessory", sizeof("acm,adb,accessory"));
+		PRINTK5("[1.1]: buf = %s", buf);
+	} 
+	//Charm end
 	b = strim(buf);
 
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG

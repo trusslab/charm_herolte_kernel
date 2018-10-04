@@ -428,9 +428,11 @@ static int fimc_is_af_probe(struct i2c_client *client,
 	af_sensor_interface.af_pdata = device;
 	af_sensor_interface.af_func = &fimc_is_af_enable;
 #ifdef CONFIG_SENSORS_SSP_BBD
-	ret = remove_af_noise_register(&af_sensor_interface);
-	if (ret)
-		err("reduce_af_noise_register failed: %d\n", ret);
+	//Charm start: we disabled the sensorhub
+	////ret = remove_af_noise_register(&af_sensor_interface);
+	////if (ret)
+	////	err("reduce_af_noise_register failed: %d\n", ret);
+	//Charm end
 #endif
 	i2c_set_clientdata(client, device);
 
@@ -448,7 +450,8 @@ static int fimc_is_af_probe(struct i2c_client *client,
 static int fimc_is_af_remove(struct i2c_client *client)
 {
 #ifdef CONFIG_SENSORS_SSP_BBD
-	remove_af_noise_unregister(&af_sensor_interface);
+	//Charm: we disabled the sensorhub
+	////remove_af_noise_unregister(&af_sensor_interface);
 #endif
 	return 0;
 }

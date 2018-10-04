@@ -39,6 +39,8 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <linux/kernel_stat.h>
+//Charm
+#include <linux/prints.h>
 
 #include "bbd.h"
 
@@ -763,6 +765,16 @@ static int bcm_spi_probe(struct spi_device *spi)
 	int host_req, mcu_req, mcu_resp;
 	struct bcm_spi_priv *priv;
 	int ret;
+	//Charm start
+	struct timeval tv;
+	do_gettimeofday(&tv);
+	if (tv.tv_sec % 2) {
+		PRINTKL("[1]: returning.\n");
+		return 0;
+	} else {
+		PRINTKL("[2]: not returning.\n");
+	}
+	//Charm end
 
 	/* Check GPIO# */
 #ifndef CONFIG_OF
@@ -1014,4 +1026,3 @@ module_init(bcm_spi_init);
 module_exit(bcm_spi_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("BCM SPI/SSI Driver");
-

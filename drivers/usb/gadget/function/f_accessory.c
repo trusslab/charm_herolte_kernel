@@ -39,11 +39,6 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/f_accessory.h>
 
-#include <linux/configfs.h>
-#include <linux/usb/composite.h>
-#include <linux/usb_notify.h>
-
-#define MAX_INST_NAME_LEN        40
 #define BULK_BUFFER_SIZE    16384
 #define ACC_STRING_SIZE     256
 
@@ -77,6 +72,11 @@ struct acc_dev {
 
 	struct usb_ep *ep_in;
 	struct usb_ep *ep_out;
+	//Charm start
+	struct usb_ep *ep_in_2;
+	struct usb_ep *ep_out_2;
+	struct usb_ep *ep_in_3;
+	//Charm end
 
 	/* set to 1 when we connect */
 	int online:1;
@@ -105,11 +105,24 @@ struct acc_dev {
 	atomic_t open_excl;
 
 	struct list_head tx_idle;
+	//Charm start
+	struct list_head tx_idle_2;
+	struct list_head tx_idle_3;
+	//Charm end
 
 	wait_queue_head_t read_wq;
 	wait_queue_head_t write_wq;
+	//Charm start
+	wait_queue_head_t read_wq_2;
+	wait_queue_head_t write_wq_2;
+	wait_queue_head_t write_wq_3;
+	//Charm end
 	struct usb_request *rx_req[RX_REQ_MAX];
 	int rx_done;
+	//Charm start
+	struct usb_request *rx_req_2[RX_REQ_MAX];
+	int rx_done_2;
+	//Charm end
 
 	/* delayed work for handling ACCESSORY_START */
 	struct delayed_work start_work;
@@ -131,11 +144,81 @@ static struct usb_interface_descriptor acc_interface_desc = {
 	.bLength                = USB_DT_INTERFACE_SIZE,
 	.bDescriptorType        = USB_DT_INTERFACE,
 	.bInterfaceNumber       = 0,
-	.bNumEndpoints          = 2,
+	//Charm start
+	////.bNumEndpoints          = 2,
+	.bNumEndpoints          = 5,
+	//Charm end
 	.bInterfaceClass        = USB_CLASS_VENDOR_SPEC,
 	.bInterfaceSubClass     = USB_SUBCLASS_VENDOR_SPEC,
 	.bInterfaceProtocol     = 0,
 };
+
+static struct usb_endpoint_descriptor acc_superspeed_in_desc = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_IN,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+	.wMaxPacketSize         = __constant_cpu_to_le16(1024),
+};
+
+//Charm start
+#define USB_DIR_OUT_2			0x1		/* to device */
+#define USB_DIR_IN_2			0x81		/* to host */
+#define USB_DIR_IN_3			0x82		/* to host */
+
+static struct usb_endpoint_descriptor acc_superspeed_in_desc_2 = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_IN_2,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+	.wMaxPacketSize         = __constant_cpu_to_le16(1024),
+};
+
+static struct usb_endpoint_descriptor acc_superspeed_in_desc_3 = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_IN_3,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+	.wMaxPacketSize         = __constant_cpu_to_le16(1024),
+};
+//Charm end
+
+static struct usb_ss_ep_comp_descriptor acc_superspeed_in_comp_desc = {
+	.bLength =		sizeof acc_superspeed_in_comp_desc,
+	.bDescriptorType =	USB_DT_SS_ENDPOINT_COMP,
+
+	/* the following 2 values can be tweaked if necessary */
+	/* .bMaxBurst =		0, */
+	/* .bmAttributes =	0, */
+};
+
+static struct usb_endpoint_descriptor acc_superspeed_out_desc = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_OUT,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+	.wMaxPacketSize         = __constant_cpu_to_le16(1024),
+};
+
+//Charm start
+static struct usb_endpoint_descriptor acc_superspeed_out_desc_2 = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_OUT_2,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+	.wMaxPacketSize         = __constant_cpu_to_le16(1024),
+};
+//Charm end
+
+static struct usb_ss_ep_comp_descriptor acc_superspeed_out_comp_desc = {
+	.bLength =		sizeof acc_superspeed_out_comp_desc,
+	.bDescriptorType =	USB_DT_SS_ENDPOINT_COMP,
+
+	/* the following 2 values can be tweaked if necessary */
+	/* .bMaxBurst =		0, */
+	/* .bmAttributes =	0, */
+};
+
 
 static struct usb_endpoint_descriptor acc_highspeed_in_desc = {
 	.bLength                = USB_DT_ENDPOINT_SIZE,
@@ -145,6 +228,24 @@ static struct usb_endpoint_descriptor acc_highspeed_in_desc = {
 	.wMaxPacketSize         = __constant_cpu_to_le16(512),
 };
 
+//Charm start
+static struct usb_endpoint_descriptor acc_highspeed_in_desc_2 = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_IN_2,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+	.wMaxPacketSize         = __constant_cpu_to_le16(512),
+};
+
+static struct usb_endpoint_descriptor acc_highspeed_in_desc_3 = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_IN_3,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+	.wMaxPacketSize         = __constant_cpu_to_le16(512),
+};
+//Charm end
+
 static struct usb_endpoint_descriptor acc_highspeed_out_desc = {
 	.bLength                = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType        = USB_DT_ENDPOINT,
@@ -153,12 +254,38 @@ static struct usb_endpoint_descriptor acc_highspeed_out_desc = {
 	.wMaxPacketSize         = __constant_cpu_to_le16(512),
 };
 
+//Charm start
+static struct usb_endpoint_descriptor acc_highspeed_out_desc_2 = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_OUT_2,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+	.wMaxPacketSize         = __constant_cpu_to_le16(512),
+};
+//Charm end
+
 static struct usb_endpoint_descriptor acc_fullspeed_in_desc = {
 	.bLength                = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType        = USB_DT_ENDPOINT,
 	.bEndpointAddress       = USB_DIR_IN,
 	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
 };
+
+//Charm start
+static struct usb_endpoint_descriptor acc_fullspeed_in_desc_2 = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_IN_2,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+};
+
+static struct usb_endpoint_descriptor acc_fullspeed_in_desc_3 = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_IN_3,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+};
+//Charm end
 
 static struct usb_endpoint_descriptor acc_fullspeed_out_desc = {
 	.bLength                = USB_DT_ENDPOINT_SIZE,
@@ -167,10 +294,24 @@ static struct usb_endpoint_descriptor acc_fullspeed_out_desc = {
 	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
 };
 
+//Charm start
+static struct usb_endpoint_descriptor acc_fullspeed_out_desc_2 = {
+	.bLength                = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType        = USB_DT_ENDPOINT,
+	.bEndpointAddress       = USB_DIR_OUT_2,
+	.bmAttributes           = USB_ENDPOINT_XFER_BULK,
+};
+//Charm end
+
 static struct usb_descriptor_header *fs_acc_descs[] = {
 	(struct usb_descriptor_header *) &acc_interface_desc,
 	(struct usb_descriptor_header *) &acc_fullspeed_in_desc,
 	(struct usb_descriptor_header *) &acc_fullspeed_out_desc,
+	//Charm start
+	(struct usb_descriptor_header *) &acc_fullspeed_in_desc_2,
+	(struct usb_descriptor_header *) &acc_fullspeed_out_desc_2,
+	(struct usb_descriptor_header *) &acc_fullspeed_in_desc_3,
+	//Charm end
 	NULL,
 };
 
@@ -178,6 +319,28 @@ static struct usb_descriptor_header *hs_acc_descs[] = {
 	(struct usb_descriptor_header *) &acc_interface_desc,
 	(struct usb_descriptor_header *) &acc_highspeed_in_desc,
 	(struct usb_descriptor_header *) &acc_highspeed_out_desc,
+	//Charm start
+	(struct usb_descriptor_header *) &acc_highspeed_in_desc_2,
+	(struct usb_descriptor_header *) &acc_highspeed_out_desc_2,
+	(struct usb_descriptor_header *) &acc_highspeed_in_desc_3,
+	//Charm end
+	NULL,
+};
+
+static struct usb_descriptor_header *ss_acc_descs[] = {
+	(struct usb_descriptor_header *) &acc_interface_desc,
+	(struct usb_descriptor_header *) &acc_superspeed_in_desc,
+	(struct usb_descriptor_header *) &acc_superspeed_in_comp_desc,
+	(struct usb_descriptor_header *) &acc_superspeed_out_desc,
+	(struct usb_descriptor_header *) &acc_superspeed_out_comp_desc,
+	//Charm start
+	(struct usb_descriptor_header *) &acc_superspeed_in_desc_2,
+	(struct usb_descriptor_header *) &acc_superspeed_in_comp_desc,
+	(struct usb_descriptor_header *) &acc_superspeed_out_desc_2,
+	(struct usb_descriptor_header *) &acc_superspeed_out_comp_desc,
+	(struct usb_descriptor_header *) &acc_superspeed_in_desc_3,
+	(struct usb_descriptor_header *) &acc_superspeed_in_comp_desc,
+	//Charm end
 	NULL,
 };
 
@@ -198,11 +361,6 @@ static struct usb_gadget_strings *acc_strings[] = {
 
 /* temporary variable used between acc_open() and acc_gadget_bind() */
 static struct acc_dev *_acc_dev;
-
-struct acc_instance {
-	struct usb_function_instance func_inst;
-	const char *name;
-};
 
 static inline struct acc_dev *func_to_dev(struct usb_function *f)
 {
@@ -294,12 +452,48 @@ static void acc_complete_out(struct usb_ep *ep, struct usb_request *req)
 	wake_up(&dev->read_wq);
 }
 
-static void acc_ctrlrequest_complete(struct usb_ep *ep, struct usb_request *req)
+//Charm start
+static void acc_complete_in_2(struct usb_ep *ep, struct usb_request *req)
 {
-	if (req->status != 0) {
-		pr_err("acc_ctrlrequest_complete, err %d\n", req->status);
+	struct acc_dev *dev = _acc_dev;
+
+	if (req->status == -ESHUTDOWN) {
+		pr_debug("acc_complete_in_2 set disconnected");
+		acc_set_disconnected(dev);
 	}
+
+	req_put(dev, &dev->tx_idle_2, req);
+
+	wake_up(&dev->write_wq_2);
 }
+
+static void acc_complete_out_2(struct usb_ep *ep, struct usb_request *req)
+{
+	struct acc_dev *dev = _acc_dev;
+
+	dev->rx_done_2 = 1;
+	if (req->status == -ESHUTDOWN) {
+		pr_debug("acc_complete_out_2 set disconnected");
+		acc_set_disconnected(dev);
+	}
+
+	wake_up(&dev->read_wq_2);
+}
+
+static void acc_complete_in_3(struct usb_ep *ep, struct usb_request *req)
+{
+	struct acc_dev *dev = _acc_dev;
+
+	if (req->status == -ESHUTDOWN) {
+		pr_debug("acc_complete_in_3 set disconnected");
+		acc_set_disconnected(dev);
+	}
+
+	req_put(dev, &dev->tx_idle_3, req);
+
+	wake_up(&dev->write_wq_3);
+}
+//Charm end
 
 static void acc_complete_set_string(struct usb_ep *ep, struct usb_request *req)
 {
@@ -505,7 +699,13 @@ static int acc_unregister_hid(struct acc_dev *dev, int id)
 
 static int create_bulk_endpoints(struct acc_dev *dev,
 				struct usb_endpoint_descriptor *in_desc,
-				struct usb_endpoint_descriptor *out_desc)
+				//Charm start
+				////struct usb_endpoint_descriptor *out_desc)
+				struct usb_endpoint_descriptor *out_desc,
+				struct usb_endpoint_descriptor *in_desc_2,
+				struct usb_endpoint_descriptor *out_desc_2,
+				struct usb_endpoint_descriptor *in_desc_3)
+				//Charm end
 {
 	struct usb_composite_dev *cdev = dev->cdev;
 	struct usb_request *req;
@@ -532,14 +732,44 @@ static int create_bulk_endpoints(struct acc_dev *dev,
 	ep->driver_data = dev;		/* claim the endpoint */
 	dev->ep_out = ep;
 
-	ep = usb_ep_autoconfig(cdev->gadget, out_desc);
+	//Charm: this seems to be erroneous */
+	////ep = usb_ep_autoconfig(cdev->gadget, out_desc);
+	////if (!ep) {
+	////	DBG(cdev, "usb_ep_autoconfig for ep_out failed\n");
+	////	return -ENODEV;
+	////}
+	////DBG(cdev, "usb_ep_autoconfig for ep_out got %s\n", ep->name);
+	////ep->driver_data = dev;		/* claim the endpoint */
+	////dev->ep_out = ep;
+	//Charm end
+	//Charm start
+	ep = usb_ep_autoconfig(cdev->gadget, in_desc_2);
 	if (!ep) {
-		DBG(cdev, "usb_ep_autoconfig for ep_out failed\n");
+		DBG(cdev, "usb_ep_autoconfig for ep_in_2 failed\n");
 		return -ENODEV;
 	}
-	DBG(cdev, "usb_ep_autoconfig for ep_out got %s\n", ep->name);
+	DBG(cdev, "usb_ep_autoconfig for ep_in_2 got %s\n", ep->name);
 	ep->driver_data = dev;		/* claim the endpoint */
-	dev->ep_out = ep;
+	dev->ep_in_2 = ep;
+
+	ep = usb_ep_autoconfig(cdev->gadget, out_desc_2);
+	if (!ep) {
+		DBG(cdev, "usb_ep_autoconfig for ep_out_2 failed\n");
+		return -ENODEV;
+	}
+	DBG(cdev, "usb_ep_autoconfig for ep_out_2 got %s\n", ep->name);
+	ep->driver_data = dev;		/* claim the endpoint */
+	dev->ep_out_2 = ep;
+
+	ep = usb_ep_autoconfig(cdev->gadget, in_desc_3);
+	if (!ep) {
+		DBG(cdev, "usb_ep_autoconfig for ep_in_3 failed\n");
+		return -ENODEV;
+	}
+	DBG(cdev, "usb_ep_autoconfig for ep_in_3 got %s\n", ep->name);
+	ep->driver_data = dev;		/* claim the endpoint */
+	dev->ep_in_3 = ep;
+	//Charm end
 
 	/* now allocate requests for our endpoints */
 	for (i = 0; i < TX_REQ_MAX; i++) {
@@ -556,6 +786,29 @@ static int create_bulk_endpoints(struct acc_dev *dev,
 		req->complete = acc_complete_out;
 		dev->rx_req[i] = req;
 	}
+	//Charm start
+	for (i = 0; i < TX_REQ_MAX; i++) {
+		req = acc_request_new(dev->ep_in_2, BULK_BUFFER_SIZE);
+		if (!req)
+			goto fail;
+		req->complete = acc_complete_in_2;
+		req_put(dev, &dev->tx_idle_2, req);
+	}
+	for (i = 0; i < RX_REQ_MAX; i++) {
+		req = acc_request_new(dev->ep_out_2, BULK_BUFFER_SIZE);
+		if (!req)
+			goto fail;
+		req->complete = acc_complete_out_2;
+		dev->rx_req_2[i] = req;
+	}
+	for (i = 0; i < TX_REQ_MAX; i++) {
+		req = acc_request_new(dev->ep_in_3, BULK_BUFFER_SIZE);
+		if (!req)
+			goto fail;
+		req->complete = acc_complete_in_3;
+		req_put(dev, &dev->tx_idle_3, req);
+	}
+	//Charm end
 
 	return 0;
 
@@ -565,16 +818,31 @@ fail:
 		acc_request_free(req, dev->ep_in);
 	for (i = 0; i < RX_REQ_MAX; i++)
 		acc_request_free(dev->rx_req[i], dev->ep_out);
+	//Charm start
+	while ((req = req_get(dev, &dev->tx_idle_2)))
+		acc_request_free(req, dev->ep_in_2);
+	for (i = 0; i < RX_REQ_MAX; i++)
+		acc_request_free(dev->rx_req_2[i], dev->ep_out_2);
+	while ((req = req_get(dev, &dev->tx_idle_3)))
+		acc_request_free(req, dev->ep_in_3);
+	//Charm end
 	return -1;
 }
 
-static ssize_t acc_read(struct file *fp, char __user *buf,
-	size_t count, loff_t *pos)
+//Charm start
+////static ssize_t acc_read(struct file *fp, char __user *buf,
+////	size_t count, loff_t *pos)
+ssize_t __acc_read(struct file *fp, char __user *buf,
+	size_t count, loff_t *pos, struct usb_ep *_ep_out,
+	wait_queue_head_t *_read_wq_p, int *_rx_done_p,
+	struct usb_request **_rx_req)
+//Charm end
 {
 	struct acc_dev *dev = fp->private_data;
 	struct usb_request *req;
 	ssize_t r = count;
 	unsigned xfer;
+	int len;
 	int ret = 0;
 
 	pr_debug("acc_read(%zu)\n", count);
@@ -587,26 +855,42 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 	if (count > BULK_BUFFER_SIZE)
 		count = BULK_BUFFER_SIZE;
 
+	//Charm
+	////len = ALIGN(count, dev->ep_out->maxpacket);
+	len = ALIGN(count, _ep_out->maxpacket);
+
 	/* we will block until we're online */
 	pr_debug("acc_read: waiting for online\n");
-	ret = wait_event_interruptible(dev->read_wq, dev->online);
+	//Charm
+	////ret = wait_event_interruptible(dev->read_wq, dev->online);
+	ret = wait_event_interruptible(*_read_wq_p, dev->online);
 	if (ret < 0) {
 		r = ret;
 		goto done;
 	}
 
-	if (dev->rx_done) {
+	//Charm
+	////if (dev->rx_done) {
+	if (*_rx_done_p) {
 		// last req cancelled. try to get it.
-		req = dev->rx_req[0];
+		//Charm
+		////req = dev->rx_req[0];
+		req = _rx_req[0];
 		goto copy_data;
 	}
 
 requeue_req:
 	/* queue a request */
-	req = dev->rx_req[0];
-	req->length = count;
-	dev->rx_done = 0;
-	ret = usb_ep_queue(dev->ep_out, req, GFP_KERNEL);
+	//Charm
+	////req = dev->rx_req[0];
+	req = _rx_req[0];
+	req->length = len;
+	//Charm
+	////dev->rx_done = 0;
+	*_rx_done_p = 0;
+	//Charm
+	////ret = usb_ep_queue(dev->ep_out, req, GFP_KERNEL);
+	ret = usb_ep_queue(_ep_out, req, GFP_KERNEL);
 	if (ret < 0) {
 		r = -EIO;
 		goto done;
@@ -615,10 +899,14 @@ requeue_req:
 	}
 
 	/* wait for a request to complete */
-	ret = wait_event_interruptible(dev->read_wq, dev->rx_done);
+	//Charm
+	////ret = wait_event_interruptible(dev->read_wq, dev->rx_done);
+	ret = wait_event_interruptible(*_read_wq_p, *_rx_done_p);
 	if (ret < 0) {
 		r = ret;
-		ret = usb_ep_dequeue(dev->ep_out, req);
+		//Charm
+		////ret = usb_ep_dequeue(dev->ep_out, req);
+		ret = usb_ep_dequeue(_ep_out, req);
 		if (ret != 0) {
 			// cancel failed. There can be a data already received.
 			// it will be retrieved in the next read.
@@ -628,7 +916,9 @@ requeue_req:
 	}
 
 copy_data:
-	dev->rx_done = 0;
+	//Charm
+	////dev->rx_done = 0;
+	*_rx_done_p = 0;
 	if (dev->online) {
 		/* If we got a 0-len packet, throw it back and try again. */
 		if (req->actual == 0)
@@ -637,8 +927,11 @@ copy_data:
 		pr_debug("rx %p %u\n", req, req->actual);
 		xfer = (req->actual < count) ? req->actual : count;
 		r = xfer;
-		if (copy_to_user(buf, req->buf, xfer))
-			r = -EFAULT;
+		//Charm start
+		////if (copy_to_user(buf, req->buf, xfer))
+		////	r = -EFAULT;
+		memcpy(buf, req->buf, xfer);
+		//Charm
 	} else
 		r = -EIO;
 
@@ -647,8 +940,33 @@ done:
 	return r;
 }
 
-static ssize_t acc_write(struct file *fp, const char __user *buf,
+//Charm start
+ssize_t acc_read(struct file *fp, char __user *buf,
 	size_t count, loff_t *pos)
+{
+	struct acc_dev *dev = fp->private_data;
+
+	return  __acc_read(fp, buf, count, pos, dev->ep_out,
+			&dev->read_wq, &dev->rx_done, dev->rx_req);
+}
+
+ssize_t acc_read_2(struct file *fp, char __user *buf,
+	size_t count, loff_t *pos)
+{
+	struct acc_dev *dev = fp->private_data;
+
+	return  __acc_read(fp, buf, count, pos, dev->ep_out_2,
+			&dev->read_wq_2, &dev->rx_done_2, dev->rx_req_2);
+}
+//Charm end
+
+//Charm start
+////static ssize_t acc_write(struct file *fp, const char __user *buf,
+////	size_t count, loff_t *pos)
+ssize_t __acc_write(struct file *fp, const char __user *buf,
+	size_t count, loff_t *pos, struct usb_ep *_ep_in,
+	wait_queue_head_t *_write_wq_p, struct list_head *_tx_idle_p)
+//Charm end
 {
 	struct acc_dev *dev = fp->private_data;
 	struct usb_request *req = 0;
@@ -672,31 +990,33 @@ static ssize_t acc_write(struct file *fp, const char __user *buf,
 
 		/* get an idle tx request to use */
 		req = 0;
-		ret = wait_event_interruptible(dev->write_wq,
-			((req = req_get(dev, &dev->tx_idle)) || !dev->online));
+		//Charm start
+		////ret = wait_event_interruptible(dev->write_wq,
+		////	((req = req_get(dev, &dev->tx_idle)) || !dev->online));
+		ret = wait_event_interruptible(*_write_wq_p,
+			((req = req_get(dev, _tx_idle_p)) || !dev->online));
+		//Charm end
 		if (!req) {
 			r = ret;
 			break;
 		}
 
-		if (count > BULK_BUFFER_SIZE) {
+		if (count > BULK_BUFFER_SIZE)
 			xfer = BULK_BUFFER_SIZE;
-			/* ZLP, They will be more TX requests so not yet. */
-			req->zero = 0;
-		} else {
+		else
 			xfer = count;
-			/* If the data length is a multple of the
-			 * maxpacket size then send a zero length packet(ZLP).
-			*/
-			req->zero = ((xfer % dev->ep_in->maxpacket) == 0);
-		}
-		if (copy_from_user(req->buf, buf, xfer)) {
-			r = -EFAULT;
-			break;
-		}
+		//Charm start
+		////if (copy_from_user(req->buf, buf, xfer)) {
+		////	r = -EFAULT;
+		////	break;
+		////}
+		memcpy(req->buf, buf, xfer);
+		//Charm
 
 		req->length = xfer;
-		ret = usb_ep_queue(dev->ep_in, req, GFP_KERNEL);
+		//Charm
+		////ret = usb_ep_queue(dev->ep_in, req, GFP_KERNEL);
+		ret = usb_ep_queue(_ep_in, req, GFP_KERNEL);
 		if (ret < 0) {
 			pr_debug("acc_write: xfer error %d\n", ret);
 			r = -EIO;
@@ -711,11 +1031,42 @@ static ssize_t acc_write(struct file *fp, const char __user *buf,
 	}
 
 	if (req)
-		req_put(dev, &dev->tx_idle, req);
+		//Charm
+		////req_put(dev, &dev->tx_idle, req);
+		req_put(dev, _tx_idle_p, req);
 
 	pr_debug("acc_write returning %zd\n", r);
 	return r;
 }
+
+//Charm start
+ssize_t acc_write(struct file *fp, const char __user *buf,
+	size_t count, loff_t *pos)
+{
+	struct acc_dev *dev = fp->private_data;
+
+	return __acc_write(fp, buf, count, pos, dev->ep_in,
+				&dev->write_wq, &dev->tx_idle);
+}
+
+ssize_t acc_write_2(struct file *fp, const char __user *buf,
+	size_t count, loff_t *pos)
+{
+	struct acc_dev *dev = fp->private_data;
+
+	return __acc_write(fp, buf, count, pos, dev->ep_in_2,
+				&dev->write_wq_2, &dev->tx_idle_2);
+}
+
+ssize_t acc_write_3(struct file *fp, const char __user *buf,
+	size_t count, loff_t *pos)
+{
+	struct acc_dev *dev = fp->private_data;
+
+	return __acc_write(fp, buf, count, pos, dev->ep_in_3,
+				&dev->write_wq_3, &dev->tx_idle_3);
+}
+//Charm end
 
 static long acc_ioctl(struct file *fp, unsigned code, unsigned long value)
 {
@@ -756,7 +1107,9 @@ static long acc_ioctl(struct file *fp, unsigned code, unsigned long value)
 	return ret;
 }
 
-static int acc_open(struct inode *ip, struct file *fp)
+//Charm
+////static int acc_open(struct inode *ip, struct file *fp)
+int acc_open(struct inode *ip, struct file *fp)
 {
 	printk(KERN_INFO "acc_open\n");
 	if (atomic_xchg(&_acc_dev->open_excl, 1))
@@ -767,7 +1120,9 @@ static int acc_open(struct inode *ip, struct file *fp)
 	return 0;
 }
 
-static int acc_release(struct inode *ip, struct file *fp)
+//Charm
+////static int acc_release(struct inode *ip, struct file *fp)
+int acc_release(struct inode *ip, struct file *fp)
 {
 	printk(KERN_INFO "acc_release\n");
 
@@ -782,6 +1137,9 @@ static const struct file_operations acc_fops = {
 	.read = acc_read,
 	.write = acc_write,
 	.unlocked_ioctl = acc_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = acc_ioctl,
+#endif
 	.open = acc_open,
 	.release = acc_release,
 };
@@ -814,7 +1172,7 @@ static struct hid_driver acc_hid_driver = {
 	.probe = acc_hid_probe,
 };
 
-int acc_ctrlrequest(struct usb_composite_dev *cdev,
+static int acc_ctrlrequest(struct usb_composite_dev *cdev,
 				const struct usb_ctrlrequest *ctrl)
 {
 	struct acc_dev	*dev = _acc_dev;
@@ -834,7 +1192,6 @@ int acc_ctrlrequest(struct usb_composite_dev *cdev,
 			b_requestType, b_request,
 			w_value, w_index, w_length);
 */
-	cdev->req->complete = acc_ctrlrequest_complete;
 
 	if (b_requestType == (USB_DIR_OUT | USB_TYPE_VENDOR)) {
 		if (b_request == ACCESSORY_START) {
@@ -889,7 +1246,7 @@ int acc_ctrlrequest(struct usb_composite_dev *cdev,
 			*((u16 *)cdev->req->buf) = PROTOCOL_VERSION;
 			value = sizeof(u16);
 
-			/* clear any string left over from a previous session */
+			/* clear strings left over from a previous session */
 			memset(dev->manufacturer, 0, sizeof(dev->manufacturer));
 			memset(dev->model, 0, sizeof(dev->model));
 			memset(dev->description, 0, sizeof(dev->description));
@@ -919,11 +1276,9 @@ err:
 			w_value, w_index, w_length);
 	return value;
 }
-EXPORT_SYMBOL_GPL(acc_ctrlrequest);
 
 static int
-__acc_function_bind(struct usb_configuration *c,
-			struct usb_function *f, bool configfs)
+acc_function_bind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct usb_composite_dev *cdev = c->cdev;
 	struct acc_dev	*dev = func_to_dev(f);
@@ -932,16 +1287,6 @@ __acc_function_bind(struct usb_configuration *c,
 
 	DBG(cdev, "acc_function_bind dev: %p\n", dev);
 
-	if (configfs) {
-		if (acc_string_defs[INTERFACE_STRING_INDEX].id == 0) {
-			ret = usb_string_id(c->cdev);
-			if (ret < 0)
-				return ret;
-			acc_string_defs[INTERFACE_STRING_INDEX].id = ret;
-			acc_interface_desc.iInterface = ret;
-		}
-		dev->cdev = c->cdev;
-	}
 	ret = hid_register_driver(&acc_hid_driver);
 	if (ret)
 		return ret;
@@ -956,7 +1301,13 @@ __acc_function_bind(struct usb_configuration *c,
 
 	/* allocate endpoints */
 	ret = create_bulk_endpoints(dev, &acc_fullspeed_in_desc,
-			&acc_fullspeed_out_desc);
+			//Charm start
+			////&acc_fullspeed_out_desc);
+			&acc_fullspeed_out_desc,
+			&acc_fullspeed_in_desc_2,
+			&acc_fullspeed_out_desc_2,
+			&acc_fullspeed_in_desc_3);
+			//Charm end
 	if (ret)
 		return ret;
 
@@ -966,24 +1317,36 @@ __acc_function_bind(struct usb_configuration *c,
 			acc_fullspeed_in_desc.bEndpointAddress;
 		acc_highspeed_out_desc.bEndpointAddress =
 			acc_fullspeed_out_desc.bEndpointAddress;
+		//Charm start
+		acc_highspeed_in_desc_2.bEndpointAddress =
+			acc_fullspeed_in_desc_2.bEndpointAddress;
+		acc_highspeed_out_desc_2.bEndpointAddress =
+			acc_fullspeed_out_desc_2.bEndpointAddress;
+		acc_highspeed_in_desc_3.bEndpointAddress =
+			acc_fullspeed_in_desc_3.bEndpointAddress;
+		//Charm end
+	}
+
+	/* support super speed hardware */
+	if (gadget_is_superspeed(c->cdev->gadget)) {
+		acc_superspeed_in_desc.bEndpointAddress =
+			acc_fullspeed_in_desc.bEndpointAddress;
+		acc_superspeed_out_desc.bEndpointAddress =
+			acc_fullspeed_out_desc.bEndpointAddress;
+		//Charm start
+		acc_superspeed_in_desc_2.bEndpointAddress =
+			acc_fullspeed_in_desc_2.bEndpointAddress;
+		acc_superspeed_out_desc_2.bEndpointAddress =
+			acc_fullspeed_out_desc_2.bEndpointAddress;
+		acc_superspeed_in_desc_3.bEndpointAddress =
+			acc_fullspeed_in_desc_3.bEndpointAddress;
+		//Charm end
 	}
 
 	DBG(cdev, "%s speed %s: IN/%s, OUT/%s\n",
 			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
 			f->name, dev->ep_in->name, dev->ep_out->name);
 	return 0;
-}
-
-
-static int
-acc_function_bind(struct usb_configuration *c, struct usb_function *f) {
-	return __acc_function_bind(c, f, false);
-}
-
-static int
-acc_function_bind_configfs(struct usb_configuration *c,
-			struct usb_function *f) {
-	return __acc_function_bind(c, f, true);
 }
 
 static void
@@ -1031,6 +1394,14 @@ acc_function_unbind(struct usb_configuration *c, struct usb_function *f)
 		acc_request_free(req, dev->ep_in);
 	for (i = 0; i < RX_REQ_MAX; i++)
 		acc_request_free(dev->rx_req[i], dev->ep_out);
+	//Charm start
+	while ((req = req_get(dev, &dev->tx_idle_2)))
+		acc_request_free(req, dev->ep_in_2);
+	for (i = 0; i < RX_REQ_MAX; i++)
+		acc_request_free(dev->rx_req_2[i], dev->ep_out_2);
+	while ((req = req_get(dev, &dev->tx_idle_3)))
+		acc_request_free(req, dev->ep_in_3);
+	//Charm end
 
 	acc_hid_unbind(dev);
 }
@@ -1039,9 +1410,6 @@ static void acc_start_work(struct work_struct *data)
 {
 	char *envp[2] = { "ACCESSORY=START", NULL };
 	kobject_uevent_env(&acc_device.this_device->kobj, KOBJ_CHANGE, envp);
-#ifdef CONFIG_USB_NOTIFY_PROC_LOG
-	store_usblog_notify(NOTIFY_USBSTATE, (void *)envp[0], NULL);
-#endif
 }
 
 static int acc_hid_init(struct acc_hid_dev *hdev)
@@ -1142,27 +1510,103 @@ static int acc_function_set_alt(struct usb_function *f,
 	DBG(cdev, "acc_function_set_alt intf: %d alt: %d\n", intf, alt);
 
 	ret = config_ep_by_speed(cdev->gadget, f, dev->ep_in);
-	if (ret)
-		return ret;
-
+	if (ret) {
+		dev->ep_in->desc = NULL;
+		ERROR(cdev, "config_ep_by_speed failes for ep %s, result %d\n",
+				dev->ep_in->name, ret);
+			return ret;
+	}
 	ret = usb_ep_enable(dev->ep_in);
-	if (ret)
+	if (ret) {
+		ERROR(cdev, "failed to enable ep %s, result %d\n",
+			dev->ep_in->name, ret);
 		return ret;
+	}
 
 	ret = config_ep_by_speed(cdev->gadget, f, dev->ep_out);
-	if (ret)
-		return ret;
-
-	ret = usb_ep_enable(dev->ep_out);
 	if (ret) {
+		dev->ep_out->desc = NULL;
+		ERROR(cdev, "config_ep_by_speed failes for ep %s, result %d\n",
+			dev->ep_out->name, ret);
 		usb_ep_disable(dev->ep_in);
 		return ret;
 	}
+	ret = usb_ep_enable(dev->ep_out);
+	if (ret) {
+		ERROR(cdev, "failed to enable ep %s, result %d\n",
+				dev->ep_out->name, ret);
+		usb_ep_disable(dev->ep_in);
+		return ret;
+	}
+
+	//Charm start
+	ret = config_ep_by_speed(cdev->gadget, f, dev->ep_in_2);
+	if (ret) {
+		dev->ep_in_2->desc = NULL;
+		ERROR(cdev, "config_ep_by_speed failes for ep %s, result %d\n",
+				dev->ep_in_2->name, ret);
+		usb_ep_disable(dev->ep_in);
+		usb_ep_disable(dev->ep_out);
+		return ret;
+	}
+	ret = usb_ep_enable(dev->ep_in_2);
+	if (ret) {
+		ERROR(cdev, "failed to enable ep %s, result %d\n",
+			dev->ep_in_2->name, ret);
+		usb_ep_disable(dev->ep_in);
+		usb_ep_disable(dev->ep_out);
+		return ret;
+	}
+
+	ret = config_ep_by_speed(cdev->gadget, f, dev->ep_out_2);
+	if (ret) {
+		dev->ep_out_2->desc = NULL;
+		ERROR(cdev, "config_ep_by_speed failes for ep %s, result %d\n",
+			dev->ep_out_2->name, ret);
+		usb_ep_disable(dev->ep_in);
+		usb_ep_disable(dev->ep_out);
+		usb_ep_disable(dev->ep_in_2);
+		return ret;
+	}
+	ret = usb_ep_enable(dev->ep_out_2);
+	if (ret) {
+		ERROR(cdev, "failed to enable ep %s, result %d\n",
+				dev->ep_out_2->name, ret);
+		usb_ep_disable(dev->ep_in);
+		usb_ep_disable(dev->ep_out);
+		usb_ep_disable(dev->ep_in_2);
+		return ret;
+	}
+
+	ret = config_ep_by_speed(cdev->gadget, f, dev->ep_in_3);
+	if (ret) {
+		dev->ep_in_3->desc = NULL;
+		ERROR(cdev, "config_ep_by_speed failes for ep %s, result %d\n",
+				dev->ep_in_3->name, ret);
+		usb_ep_disable(dev->ep_in);
+		usb_ep_disable(dev->ep_out);
+		usb_ep_disable(dev->ep_in_2);
+		usb_ep_disable(dev->ep_out_2);
+		return ret;
+	}
+	ret = usb_ep_enable(dev->ep_in_3);
+	if (ret) {
+		ERROR(cdev, "failed to enable ep %s, result %d\n",
+			dev->ep_in_3->name, ret);
+		usb_ep_disable(dev->ep_in);
+		usb_ep_disable(dev->ep_out);
+		usb_ep_disable(dev->ep_in_2);
+		usb_ep_disable(dev->ep_out_2);
+		return ret;
+	}
+	//Charm end
 
 	dev->online = 1;
 
 	/* readers may be blocked waiting for us to go online */
 	wake_up(&dev->read_wq);
+	//Charm
+	wake_up(&dev->read_wq_2);
 	return 0;
 }
 
@@ -1175,13 +1619,19 @@ static void acc_function_disable(struct usb_function *f)
 	acc_set_disconnected(dev);
 	usb_ep_disable(dev->ep_in);
 	usb_ep_disable(dev->ep_out);
+	//Charm start
+	usb_ep_disable(dev->ep_in_2);
+	usb_ep_disable(dev->ep_out_2);
+	usb_ep_disable(dev->ep_in_3);
+	//Charm end
 
 	/* readers may be blocked waiting for us to go online */
 	wake_up(&dev->read_wq);
+	//Charm
+	wake_up(&dev->read_wq_2);
 
 	VDBG(cdev, "%s disabled\n", dev->function.name);
 }
-
 
 static int acc_bind_config(struct usb_configuration *c)
 {
@@ -1204,6 +1654,8 @@ static int acc_bind_config(struct usb_configuration *c)
 	dev->function.strings = acc_strings,
 	dev->function.fs_descriptors = fs_acc_descs;
 	dev->function.hs_descriptors = hs_acc_descs;
+	if (gadget_is_superspeed(c->cdev->gadget))
+		dev->function.ss_descriptors = ss_acc_descs;
 	dev->function.bind = acc_function_bind;
 	dev->function.unbind = acc_function_unbind;
 	dev->function.set_alt = acc_function_set_alt;
@@ -1211,7 +1663,6 @@ static int acc_bind_config(struct usb_configuration *c)
 
 	return usb_add_function(c, &dev->function);
 }
-
 
 static int acc_setup(void)
 {
@@ -1225,8 +1676,17 @@ static int acc_setup(void)
 	spin_lock_init(&dev->lock);
 	init_waitqueue_head(&dev->read_wq);
 	init_waitqueue_head(&dev->write_wq);
+	//Charm start
+	init_waitqueue_head(&dev->read_wq_2);
+	init_waitqueue_head(&dev->write_wq_2);
+	init_waitqueue_head(&dev->write_wq_3);
+	//Charm end
 	atomic_set(&dev->open_excl, 0);
 	INIT_LIST_HEAD(&dev->tx_idle);
+	//Charm start
+	INIT_LIST_HEAD(&dev->tx_idle_2);
+	INIT_LIST_HEAD(&dev->tx_idle_3);
+	//Charm end
 	INIT_LIST_HEAD(&dev->hid_list);
 	INIT_LIST_HEAD(&dev->new_hid_list);
 	INIT_LIST_HEAD(&dev->dead_hid_list);
@@ -1248,12 +1708,11 @@ err:
 	return ret;
 }
 
-void acc_disconnect(void)
+static void acc_disconnect(void)
 {
 	/* unregister all HID devices if USB is disconnected */
 	kill_all_hid_devices(_acc_dev);
 }
-EXPORT_SYMBOL_GPL(acc_disconnect);
 
 static void acc_cleanup(void)
 {
@@ -1261,117 +1720,3 @@ static void acc_cleanup(void)
 	kfree(_acc_dev);
 	_acc_dev = NULL;
 }
-static struct acc_instance *to_acc_instance(struct config_item *item)
-{
-	return container_of(to_config_group(item), struct acc_instance,
-		func_inst.group);
-}
-
-static void acc_attr_release(struct config_item *item)
-{
-	struct acc_instance *fi_acc = to_acc_instance(item);
-
-	usb_put_function_instance(&fi_acc->func_inst);
-}
-
-static struct configfs_item_operations acc_item_ops = {
-	.release        = acc_attr_release,
-};
-
-static struct config_item_type acc_func_type = {
-	.ct_item_ops    = &acc_item_ops,
-	.ct_owner       = THIS_MODULE,
-};
-
-static struct acc_instance *to_fi_acc(struct usb_function_instance *fi)
-{
-	return container_of(fi, struct acc_instance, func_inst);
-}
-
-static int acc_set_inst_name(struct usb_function_instance *fi, const char *name)
-{
-	struct acc_instance *fi_acc;
-	char *ptr;
-	int name_len;
-
-	name_len = strlen(name) + 1;
-	if (name_len > MAX_INST_NAME_LEN)
-		return -ENAMETOOLONG;
-
-	ptr = kstrndup(name, name_len, GFP_KERNEL);
-	if (!ptr)
-		return -ENOMEM;
-
-	fi_acc = to_fi_acc(fi);
-	fi_acc->name = ptr;
-	return 0;
-}
-
-static void acc_free_inst(struct usb_function_instance *fi)
-{
-	struct acc_instance *fi_acc;
-
-	fi_acc = to_fi_acc(fi);
-	kfree(fi_acc->name);
-	acc_cleanup();
-}
-
-static struct usb_function_instance *acc_alloc_inst(void)
-{
-	struct acc_instance *fi_acc;
-	struct acc_dev *dev;
-	int err;
-
-	fi_acc = kzalloc(sizeof(*fi_acc), GFP_KERNEL);
-	if (!fi_acc)
-		return ERR_PTR(-ENOMEM);
-	fi_acc->func_inst.set_inst_name = acc_set_inst_name;
-	fi_acc->func_inst.free_func_inst = acc_free_inst;
-
-	err = acc_setup();
-	if (err) {
-		kfree(fi_acc);
-		pr_err("Error setting ACCESSORY\n");
-		return ERR_PTR(err);
-	}
-
-	config_group_init_type_name(&fi_acc->func_inst.group,
-					"", &acc_func_type);
-	dev = _acc_dev;
-	return  &fi_acc->func_inst;
-}
-
-static void acc_free(struct usb_function *f)
-{
-/*NO-OP: no function specific resource allocation in mtp_alloc*/
-}
-
-int acc_ctrlrequest_configfs(struct usb_function *f,
-			const struct usb_ctrlrequest *ctrl) {
-	if (f->config != NULL && f->config->cdev != NULL)
-		return acc_ctrlrequest(f->config->cdev, ctrl);
-	else
-		return -1;
-}
-
-static struct usb_function *acc_alloc(struct usb_function_instance *fi)
-{
-	struct acc_dev *dev = _acc_dev;
-
-	pr_info("acc_alloc\n");
-
-	dev->function.name = "accessory";
-	dev->function.strings = acc_strings,
-	dev->function.fs_descriptors = fs_acc_descs;
-	dev->function.hs_descriptors = hs_acc_descs;
-	dev->function.bind = acc_function_bind_configfs;
-	dev->function.unbind = acc_function_unbind;
-	dev->function.set_alt = acc_function_set_alt;
-	dev->function.disable = acc_function_disable;
-	dev->function.free_func = acc_free;
-	dev->function.setup = acc_ctrlrequest_configfs;
-
-	return &dev->function;
-}
-DECLARE_USB_FUNCTION_INIT(accessory, acc_alloc_inst, acc_alloc);
-MODULE_LICENSE("GPL");

@@ -11,6 +11,16 @@ obj-y     = fork.o exec_domain.o panic.o \
 	    notifier.o ksysfs.o cred.o reboot.o \
 	    async.o range.o groups.o smpboot.o
 
+#Charm start
+obj-y += charm_agent.o
+obj-y += charm_register_interface.o
+obj-y += charm_irq.o
+obj-y += charm_rpc.o
+obj-y += charm_usb.o
+obj-y += charm_rbtree.o
+#Charm end
+
+
 ifdef CONFIG_FUNCTION_TRACER
 # Do not trace debug files and internal ftrace files
 CFLAGS_REMOVE_cgroup-debug.o = -pg

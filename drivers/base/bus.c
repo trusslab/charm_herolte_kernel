@@ -20,6 +20,8 @@
 #include <linux/sysfs.h>
 #include "base.h"
 #include "power/power.h"
+//Charm
+#include <linux/prints.h>
 
 /* /sys/devices/system */
 static struct kset *system_kset;
@@ -357,6 +359,36 @@ static int match_name(struct device *dev, void *data)
 
 	return sysfs_streq(name, dev_name(dev));
 }
+
+//Charm start
+struct device *Charm_bus_find_device(struct bus_type *bus,
+			       struct device *start, void *data,
+			       int (*match)(struct device *dev, void *data))
+{
+	struct klist_iter i;
+	struct device *dev;
+
+	if (!bus || !bus->p)
+		return NULL;
+
+	klist_iter_init_node(&bus->p->klist_devices, &i,
+			     (start ? &start->p->knode_bus : NULL));
+	while ((dev = next_device(&i))){
+		PRINTKL("%s",dev_name(dev));
+		if (match(dev, data) && get_device(dev))
+			break;
+	}
+	klist_iter_exit(&i);
+	return dev;
+}
+struct device *charm_print_all_device_names(struct bus_type *bus,
+				       struct device *start, const char *name)
+{
+	return Charm_bus_find_device(bus, start, (void *)name, match_name);
+}
+
+//Charm
+
 
 /**
  * bus_find_device_by_name - device iterator for locating a particular device of a specific name

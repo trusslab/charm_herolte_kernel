@@ -32,6 +32,8 @@
 #include <linux/gpio.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
+//Charm
+#include <linux/prints.h>
 #include <soc/samsung/exynos-powermode.h>
 
 #include <linux/platform_data/spi-s3c64xx.h>
@@ -1508,6 +1510,8 @@ static int s3c64xx_spi_probe(struct platform_device *pdev)
 	char clk_name[16];
 	int fifosize;
 	u32 __iomem	*fusing_bit_addr;
+	//Charm
+	PRINTKL("[1]\n");
 
 	ret = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(36));
 	if (ret)
@@ -1534,6 +1538,13 @@ static int s3c64xx_spi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to get SPI MEM resource\n");
 		return -ENXIO;
 	}
+	//Charm start
+	//PRINTKL("[1]: mem_res->start = %#lx\n", mem_res->start);
+	//if (mem_res->start == 0x14d30000) {
+	//	PRINTKL("[1.1]: returning here in order to disable the spi bus used for BCM4773\n");
+	//	//return 0;
+	//}
+	//Charm end
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0) {
@@ -2200,6 +2211,8 @@ MODULE_ALIAS("platform:s3c64xx-spi");
 
 static int __init s3c64xx_spi_init(void)
 {
+	//Charm
+	PRINTKL("[1]\n");
 #ifdef CONFIG_CPU_IDLE
 	exynos_pm_register_notifier(&s3c64xx_spi_notifier_block);
 #endif
